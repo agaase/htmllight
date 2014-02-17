@@ -1,0 +1,11 @@
+# node_module folders
+node_modules/*
+node_modules
+
+#log
+log/*
+output.log
+npm-debug.log
+
+#random
+.DS_Store
