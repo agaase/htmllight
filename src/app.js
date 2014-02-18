@@ -16,6 +16,13 @@ var App = function() {
     this.version = "5.0";
 };
 
+App.prototype.getErrorPage = function() {
+    var errHtml = "<!DOCTYPE html >";
+    errHtml += "<body> Oops there seems to be an error. Please check url and reload.</body>";
+    errHtml += "</html>";
+    return errHtml;
+};
+
 /**
  * Sets the initial urls which serve as configuration params.
  * @method setUrls
@@ -49,6 +56,16 @@ App.prototype.getUrl = function(urlTemp, data) {
     });
     return url;
 };
+
+App.prototype.checkInvalidUrls = function(url) {
+    var re = /[.]*(htmllight\/)[a-z0-9]+/g;
+    if (url.match(re)) {
+        return true;
+    } else {
+        console.log("invalid url" + url);
+        return false;
+    }
+};
 /**
  * This sets the route for the app which basically setting the various params required
  * for determing the right page.
@@ -61,51 +78,54 @@ App.prototype.decideRoute = function(url) {
     var def = new Deferred(),
         that = this,
         toResolve = true;
-
-    if (url.indexOf("articles") > -1) {
-        this.route.page = "articles";
-        paramsArr = url.split("htmllight/" + "articles/")[1].split("/");
-        this.netid = paramsArr[0];
-        if (paramsArr.length > 2) {
-            this.route.page = "error";
-        } else {
-            this.route.articlesId = paramsArr[1];
-        }
-    } else if (url.indexOf("article") > -1) {
-        this.route.page = "article";
-        paramsArr = url.split("htmllight/" + "article/")[1].split("/");
-        this.netid = paramsArr[0];
-        if (paramsArr.length > 3) {
-            this.route.page = "error";
-        } else {
-            this.route.articlesId = paramsArr[1];
-            this.route.articleId = paramsArr[2];
-        }
-    } else if (url.indexOf("categories") > -1) {
-        this.route.page = "categories";
-        paramsArr = url.split("htmllight/" + "categories/")[1].split("/");
-        this.netid = paramsArr[0];
-        if (paramsArr.length > 1) {
-            this.route.page = "error";
-        }
+    if (!this.checkInvalidUrls(url)) {
+        this.route.page = "error";
     } else {
-        try {
+        if (url.indexOf("articles") > -1) {
+            this.route.page = "articles";
+            paramsArr = url.split("htmllight/" + "articles/")[1].split("/");
+            this.netid = paramsArr[0];
+            if (paramsArr.length > 2) {
+                this.route.page = "error";
+            } else {
+                this.route.articlesId = paramsArr[1];
+            }
+        } else if (url.indexOf("article") > -1) {
+            this.route.page = "article";
+            paramsArr = url.split("htmllight/" + "article/")[1].split("/");
+            this.netid = paramsArr[0];
+            if (paramsArr.length > 3) {
+                this.route.page = "error";
+            } else {
+                this.route.articlesId = paramsArr[1];
+                this.route.articleId = paramsArr[2];
+            }
+        } else if (url.indexOf("categories") > -1) {
+            this.route.page = "categories";
+            paramsArr = url.split("htmllight/" + "categories/")[1].split("/");
+            this.netid = paramsArr[0];
+            if (paramsArr.length > 1) {
+                this.route.page = "error";
+            }
+        } else {
             paramsArr = url.split("htmllight/")[1].split("/");
             this.netid = parseInt(paramsArr[0]);
             toResolve = false;
-            //request("http://app.genwi.com/5.0/cache/statusObject/" + this.netid, function(err, resp, body) {
             request(this.getUrl("statusObject"), function(err, resp, body) {
                 if (!err && resp.statusCode == 200) {
-                    var url = JSON.parse(body)["home"];
-                    url = url.replace(that.hostUrl + that.version + "/", "");
-                    url = url.split("?")[0];
-                    that.decideRoute(that.baseUrl + url);
-                    def.resolve();
+                    try {
+                        var url = JSON.parse(body)["home"];
+                        url = url.replace(that.hostUrl + that.version + "/", "");
+                        url = url.split("?")[0];
+                        that.decideRoute(that.baseUrl + url);
+                        def.resolve();
+                    } catch (er) {
+                        console.log(er);
+                        this.route.page = "error";
+                    }
                 }
             });
-        } catch (err) {
-            console.log(err);
-            this.route.page = "error";
+
         }
     }
     if (toResolve) {
@@ -125,20 +145,17 @@ App.prototype.decideRoute = function(url) {
 App.prototype.setJsonUrl = function() {
     switch (this.route.page) {
         case "articles":
-            //this.jsonurl = "http://app.genwi.com/5.0/getjson/articles/" + this.netid + "/" + this.route.articlesId;
             this.jsonurl = this.getUrl("articlesJson", {
                 "articlesId": this.route.articlesId
             });
             break;
         case "article":
-            //this.jsonurl = "http://app.genwi.com/5.0/getjson/article/" + this.netid + "/" + this.route.articlesId + "/" + this.route.articleId;
             this.jsonurl = this.getUrl("articleJson", {
                 "articlesId": this.route.articlesId,
                 "articleId": this.route.articleId
             });
             break;
         case "categories":
-            //this.jsonurl = "http://app.genwi.com/5.0/getjson/jsonObject/" + this.netid;
             this.jsonurl = this.getUrl("categoriesJson");
     }
 };
@@ -173,7 +190,6 @@ App.prototype.getHeaderTags = function() {
 App.prototype.getStyleSheets = function() {
     var info = "";
     info += "<script src='http://code.jquery.com/jquery-1.10.1.min.js'></script>";
-    //info += "<link rel='stylesheet' href='http://app.genwi.com/resources_5.0.x/" + this.netid + "/css/_app.min.css' />";
     info += "<link rel='stylesheet' href='" + this.getUrl("appCss") + "' />";
     return info;
 };
@@ -181,7 +197,6 @@ App.prototype.getStyleSheets = function() {
 App.prototype.getScriptsToImport = function() {
     var info = "";
     info += "<script>var network_id='" + this.netid + "', baseUrl = '" + this.baseUrl + "', pageName='html5';</script>";
-    //info += "<script src='http://app.genwi.com/resources_5.0.x/" + this.netid + "/js/_app.min.js'></script>";
     info += "<script src='" + this.getUrl("appJs") + "'></script>";
     info += "<script src='" + this.getUrl("handlebars") + "'></script>";
     info += "<script src='" + this.getUrl("hbHelpers") + "'></script>";
